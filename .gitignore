@@ -1,0 +1,10 @@
+# Security
+.env
+
+# Python Caches
+__pycache__/
+*.pyc
+
+# Daten und Outputs (nicht ins Repo pushen)
+data/
+output/

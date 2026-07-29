@@ -1,0 +1,398 @@
+import os
+import sys
+import json
+import re
+import requests
+import markdown
+import pdfkit
+from bs4 import BeautifulSoup
+from google import genai
+from google.genai import types
+from dotenv import load_dotenv
+
+# ==========================================
+# KONFIGURATION & API-SETUP
+# ==========================================
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY or "dein_" in GEMINI_API_KEY.lower():
+    raise ValueError("GEMINI_API_KEY ungültig. Bitte trage deinen echten Key in die .env-Datei ein.")
+
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SSOT_PATH = os.path.join(BASE_DIR, "data", "ssot_profile.json")
+EVAL_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "job_evaluator_prompt.md")
+CV_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "cv_system_prompt.md")
+TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "cv_template.md")
+OUTPUT_DIR = os.path.join(BASE_DIR, "output", "ready_to_send")
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# ==========================================
+# HILFSFUNKTIONEN & EXTRAKTION
+# ==========================================
+def fetch_job_description(url):
+    print(f"\n[1] Lade und analysiere Job-Daten von URL: {url}")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            print(f"Fehler: Webseite gab Status Code {response.status_code} zurück.")
+            return None
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 1. Unternehmensname
+        company = None
+        comp_elem = soup.find('a', class_='topcard__org-name-link') or soup.find('a', class_='sub-nav-cta__optional-url')
+        if comp_elem:
+            company = comp_elem.get_text(strip=True)
+        elif soup.title:
+            title_text = soup.title.get_text()
+            if " hiring " in title_text:
+                company = title_text.split(" hiring ")[0].strip()
+            elif " bei " in title_text:
+                company = title_text.split(" bei ")[1].split("|")[0].strip()
+
+        # 2. Stellenbezeichnung (Role)
+        role = None
+        role_elem = soup.find('h1', class_='top-card-layout__title') or soup.find('h3', class_='sub-nav-cta__header')
+        if role_elem:
+            role = role_elem.get_text(strip=True)
+        elif soup.title:
+            title_text = soup.title.get_text()
+            if " hiring " in title_text:
+                role = title_text.split(" hiring ")[1].split(" in ")[0].split("|")[0].strip()
+
+        # 3. Standort (Location)
+        location = None
+        loc_elem = soup.find('span', class_='topcard__flavor--bullet') or soup.find('span', class_='sub-nav-cta__meta-text')
+        if loc_elem:
+            location = loc_elem.get_text(strip=True)
+
+        # 4. Haupt-Stellenbeschreibung
+        desc_text = ""
+        desc_div = soup.find('div', class_='show-more-less-html__markup')
+        if desc_div:
+            desc_text = desc_div.get_text(separator='\n', strip=True)
+        else:
+            desc_text = soup.body.get_text(separator='\n', strip=True)[:3000]
+
+        # 5. Ansprechperson suchen (falls im Text erwähnt)
+        contact = "Nicht angegeben"
+        contact_match = re.search(r'(?:Ansprechpartner|Ansprechperson|Recruiter|Contact|Hiring Manager)\s*:\s*([A-Za-zÄöüß\s\.\-]+)', desc_text, re.IGNORECASE)
+        if contact_match:
+            contact = contact_match.group(1).strip()
+
+        metadata_block = f"""METADATEN DER STELLENANZEIGE:
+- Unternehmen (Company): {company or 'Nicht angegeben'}
+- Stellenbezeichnung (Role): {role or 'Nicht angegeben'}
+- Standort (Location): {location or 'Nicht angegeben'}
+- Ansprechperson (Contact): {contact}
+
+STELLENBESCHREIBUNG:
+{desc_text}"""
+
+        return {
+            "company": company or "Nicht angegeben",
+            "role": role or "Nicht angegeben",
+            "location": location or "Nicht angegeben",
+            "contact": contact,
+            "raw_text": desc_text,
+            "full_job_prompt": metadata_block
+        }
+
+    except Exception as e:
+        print(f"Fehler beim Abrufen der URL: {e}")
+        return None
+
+def evaluate_job(job_info, ssot_data, eval_prompt):
+    print("[2] Evaluiere Job-Match mit deinem Profil...")
+    full_prompt = f"{eval_prompt}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
+    
+    response = client.models.generate_content(
+        model='gemini-3.6-flash',
+        contents=full_prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json"
+        )
+    )
+    try:
+        eval_dict = json.loads(response.text)
+        if eval_dict.get("extracted_company", "Nicht angegeben") in ["Nicht angegeben", "Unknown_Company"]:
+            eval_dict["extracted_company"] = job_info["company"]
+        if eval_dict.get("extracted_role", "Nicht angegeben") in ["Nicht angegeben", "Unknown_Role"]:
+            eval_dict["extracted_role"] = job_info["role"]
+        if "extracted_location" not in eval_dict or eval_dict["extracted_location"] == "Nicht angegeben":
+            eval_dict["extracted_location"] = job_info["location"]
+        if "extracted_contact" not in eval_dict:
+            eval_dict["extracted_contact"] = job_info["contact"]
+        return eval_dict
+    except Exception as e:
+        print(f"JSON Parsing Error bei Evaluierung: {e}")
+        return {
+            "match": False,
+            "fit_score": 0,
+            "reasoning": f"JSON Parsing Error: {e}",
+            "extracted_company": job_info["company"],
+            "extracted_role": job_info["role"],
+            "extracted_location": job_info["location"],
+            "extracted_contact": job_info["contact"]
+        }
+
+def generate_application(job_info, ssot_data, cv_prompt, template):
+    print("[3] Erstelle maßgeschneiderten Lebenslauf und Anschreiben...")
+    full_prompt = f"{cv_prompt}\n\nHier ist das Template / Referenz:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
+    
+    response = client.models.generate_content(
+        model='gemini-3.6-flash',
+        contents=full_prompt
+    )
+    return response.text
+
+def convert_markdown_to_styled_html(markdown_text):
+    parts = re.split(r'<!--\s*PAGE_BREAK\s*-->|&lt;!--\s*PAGE_BREAK\s*--&gt;', markdown_text)
+    
+    html_parts = []
+    for index, part in enumerate(parts):
+        raw_html = markdown.markdown(part.strip(), extensions=['tables', 'fenced_code', 'attr_list'])
+        
+        if index == 0:
+            raw_html = re.sub(r'<h1>\s*ANSCHREIBEN\s*</h1>', '', raw_html, flags=re.IGNORECASE)
+            html_parts.append(f'<div class="section-anschreiben">{raw_html}</div>')
+        else:
+            raw_html = re.sub(r'<h1>\s*LEBENSLAUF\s*</h1>', '', raw_html, flags=re.IGNORECASE)
+            html_parts.append(f'<div class="section-lebenslauf">{raw_html}</div>')
+            
+    content_html = '<div class="page-break"></div>'.join(html_parts)
+    
+    styled_html = f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Bewerbungsunterlagen - Gregor Nottmeier</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {{
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-size: 8.8pt;
+            line-height: 1.36;
+            color: #1e293b;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+        }}
+        
+        /* Page Break Control */
+        .page-break {{
+            page-break-before: always;
+            page-break-after: always;
+            clear: both;
+            display: block;
+            height: 0;
+            margin: 0;
+            padding: 0;
+        }}
+        
+        .section-anschreiben {{
+            font-size: 9.2pt;
+            line-height: 1.45;
+        }}
+        
+        .section-lebenslauf {{
+            font-size: 8.8pt;
+            line-height: 1.35;
+        }}
+        
+        /* Headings Styling */
+        h1 {{
+            font-size: 15pt;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: -0.3px;
+            margin-top: 0;
+            margin-bottom: 4px;
+            padding-bottom: 3px;
+            border-bottom: 2px solid #2563eb;
+        }}
+        
+        h2 {{
+            font-size: 10pt;
+            font-weight: 600;
+            color: #1e3a8a;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-top: 10px;
+            margin-bottom: 4px;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #cbd5e1;
+        }}
+        
+        h3 {{
+            font-size: 9.2pt;
+            font-weight: 600;
+            color: #0f172a;
+            margin-top: 6px;
+            margin-bottom: 2px;
+        }}
+        
+        p {{
+            margin-top: 0;
+            margin-bottom: 5px;
+        }}
+        
+        ul {{
+            margin-top: 2px;
+            margin-bottom: 6px;
+            padding-left: 14px;
+        }}
+        
+        li {{
+            margin-bottom: 2px;
+        }}
+        
+        strong {{
+            color: #0f172a;
+            font-weight: 600;
+        }}
+        
+        em {{
+            color: #475569;
+        }}
+
+        hr {{
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 8px 0;
+        }}
+
+        /* Table Styling */
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 4px;
+            margin-bottom: 8px;
+        }}
+        
+        th {{
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: 600;
+            text-align: left;
+            padding: 4px 6px;
+            border-bottom: 2px solid #cbd5e1;
+            font-size: 8.5pt;
+        }}
+        
+        td {{
+            padding: 4px 6px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 8.5pt;
+            vertical-align: top;
+        }}
+
+        /* Code & Badge formatting */
+        code {{
+            background-color: #eff6ff;
+            color: #1d4ed8;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 8.2pt;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            border: 1px solid #bfdbfe;
+        }}
+    </style>
+</head>
+<body>
+    {content_html}
+</body>
+</html>"""
+    return styled_html
+
+# ==========================================
+# HAUPT-WORKFLOW
+# ==========================================
+def main():
+    if len(sys.argv) < 2:
+        print("Fehler: Du musst einen LinkedIn-Link angeben!")
+        print("Nutzung: python src/00_manual_generator.py 'DEIN_LINK_HIER'")
+        sys.exit(1)
+
+    url = sys.argv[1]
+
+    try:
+        with open(SSOT_PATH, 'r', encoding='utf-8') as f: ssot_data = f.read()
+        with open(EVAL_PROMPT_PATH, 'r', encoding='utf-8') as f: eval_prompt = f.read()
+        with open(CV_PROMPT_PATH, 'r', encoding='utf-8') as f: cv_prompt = f.read()
+        with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f: cv_template = f.read()
+    except FileNotFoundError as e:
+        print(f"Fehler: Datei nicht gefunden. {e}")
+        return
+
+    job_info = fetch_job_description(url)
+    if not job_info:
+        print("Abbruch: Konnte keinen Text extrahieren.")
+        return
+
+    evaluation_result = evaluate_job(job_info, ssot_data, eval_prompt)
+    company = evaluation_result.get("extracted_company", job_info["company"])
+    role = evaluation_result.get("extracted_role", job_info["role"])
+    is_match = evaluation_result.get("match", False)
+    score = evaluation_result.get("fit_score", 0)
+    
+    print(f"\nErgebnis für {company} - {role}:")
+    print(f"Match: {is_match} | Score: {score}/100")
+    print(f"Begründung: {evaluation_result.get('reasoning', '')}\n")
+
+    if is_match and score >= 75:
+        print("--> Super Match! Generierung läuft...")
+        final_document = generate_application(job_info, ssot_data, cv_prompt, cv_template)
+        
+        # 1. Sauber formatierte Dateinamen
+        clean_company = re.sub(r'[^\w\-]', '_', company).strip('_')
+        clean_role = re.sub(r'[^\w\-]', '_', role).strip('_')
+        base_filename = f"MANUAL_{clean_company}_{clean_role}"
+        
+        md_file_path = os.path.join(OUTPUT_DIR, f"{base_filename}.md")
+        pdf_file_path = os.path.join(OUTPUT_DIR, f"{base_filename}.pdf")
+        
+        # 2. Markdown speichern
+        with open(md_file_path, 'w', encoding='utf-8') as out_f:
+            out_f.write(final_document)
+            
+        # 3. HTML mit Executive CSS konvertieren
+        styled_html = convert_markdown_to_styled_html(final_document)
+        
+        # 4. HTML als PDF rendern mit optimierten Druck-Optionen
+        print("[4] Rendere PDF-Dokument mit Executive Styling...")
+        pdf_options = {
+            'page-size': 'A4',
+            'margin-top': '10mm',
+            'margin-bottom': '10mm',
+            'margin-left': '14mm',
+            'margin-right': '14mm',
+            'encoding': 'UTF-8',
+            'enable-local-file-access': None,
+            'quiet': ''
+        }
+        
+        pdfkit.from_string(styled_html, pdf_file_path, options=pdf_options)
+            
+        print(f"\n[ERFOLG] Dokumente gespeichert unter:")
+        print(f" - Markdown: {md_file_path}")
+        print(f" - PDF:      {pdf_file_path}")
+    else:
+        print("--> Der Evaluator rät von dieser Stelle ab. Keine Dokumente generiert.")
+
+if __name__ == "__main__":
+    main()
