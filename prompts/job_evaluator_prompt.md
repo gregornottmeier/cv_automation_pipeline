@@ -15,14 +15,16 @@ EVALUIERUNGS-REGELN:
 1. Prüfe die Hard-Filter rigoros. 
 2. Berechne einen "fit_score" von 0 bis 100 basierend auf der Überschneidung des Tech-Stacks und der Domänen-Erfahrung (z.B. RLHF, Spatio-Temporal Data, BCI).
 3. Begründe deine Entscheidung analytisch in maximal 2 Sätzen.
+4. Erkenne die Hauptsprache der Stellenanzeige ("de" für Deutsch, "en" für Englisch).
 
 OUTPUT-FORMAT (Du darfst ausschließlich valides JSON ausgeben!):
 {
   "match": true/false,
   "fit_score": [Zahl 0-100],
   "reasoning": "[Kurze Begründung]",
+  "detected_language": "de" / "en",
   "extracted_company": "[Name des Unternehmens]",
   "extracted_role": "[Exakte Stellenbezeichnung]",
   "extracted_location": "[Standort des Unternehmens]",
   "extracted_contact": "[Name der Ansprechperson / Recruiter, falls vorhanden, sonst 'Nicht angegeben']"
-}
+}

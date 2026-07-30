@@ -131,6 +131,8 @@ def evaluate_job(job_info, ssot_data, eval_prompt):
             eval_dict["extracted_location"] = job_info["location"]
         if "extracted_contact" not in eval_dict:
             eval_dict["extracted_contact"] = job_info["contact"]
+        if "detected_language" not in eval_dict or eval_dict["detected_language"] not in ["de", "en"]:
+            eval_dict["detected_language"] = "de"
         return eval_dict
     except Exception as e:
         print(f"JSON Parsing Error bei Evaluierung: {e}")
@@ -138,15 +140,17 @@ def evaluate_job(job_info, ssot_data, eval_prompt):
             "match": False,
             "fit_score": 0,
             "reasoning": f"JSON Parsing Error: {e}",
+            "detected_language": "de",
             "extracted_company": job_info["company"],
             "extracted_role": job_info["role"],
             "extracted_location": job_info["location"],
             "extracted_contact": job_info["contact"]
         }
 
-def generate_application(job_info, ssot_data, cv_prompt, template):
-    print("[3] Erstelle maßgeschneiderten Lebenslauf und Anschreiben...")
-    full_prompt = f"{cv_prompt}\n\nHier ist das Template / Referenz:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
+def generate_application(job_info, ssot_data, cv_prompt, template, language="de"):
+    print(f"[3] Erstelle maßgeschneiderten Lebenslauf und Anschreiben (Sprache: {language.upper()})...")
+    lang_instruction = f"WICHTIGE SPRACHVORGABE: Generiere BEIDE Dokumente (Anschreiben & Lebenslauf) strikt auf {'Englisch' if language == 'en' else 'Deutsch'}!"
+    full_prompt = f"{cv_prompt}\n\n{lang_instruction}\n\nHier ist das Template / Referenz:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
     
     response = client.models.generate_content(
         model='gemini-3.6-flash',
@@ -154,24 +158,20 @@ def generate_application(job_info, ssot_data, cv_prompt, template):
     )
     return response.text
 
-def convert_markdown_to_styled_html(markdown_text):
-    parts = re.split(r'<!--\s*PAGE_BREAK\s*-->|&lt;!--\s*PAGE_BREAK\s*--&gt;', markdown_text)
-    
-    html_parts = []
-    for index, part in enumerate(parts):
-        raw_html = markdown.markdown(part.strip(), extensions=['tables', 'fenced_code', 'attr_list'])
+def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", language="de"):
+    if doc_type == "cover_letter":
+        # Remove any accidental backticks so frameworks/packages in cover letter prose render as normal text
+        markdown_text = re.sub(r'`([^`]+)`', r'\1', markdown_text)
+        raw_html = markdown.markdown(markdown_text.strip(), extensions=['tables', 'fenced_code', 'attr_list'])
+        raw_html = re.sub(r'<h1>\s*(ANSCHREIBEN|COVER LETTER)\s*</h1>', '', raw_html, flags=re.IGNORECASE)
+        content_html = f'<div class="section-anschreiben">{raw_html}</div>'
+    else:
+        raw_html = markdown.markdown(markdown_text.strip(), extensions=['tables', 'fenced_code', 'attr_list'])
+        raw_html = re.sub(r'<h1>\s*(LEBENSLAUF|CV|RESUME)\s*</h1>', '', raw_html, flags=re.IGNORECASE)
+        content_html = f'<div class="section-lebenslauf">{raw_html}</div>'
         
-        if index == 0:
-            raw_html = re.sub(r'<h1>\s*ANSCHREIBEN\s*</h1>', '', raw_html, flags=re.IGNORECASE)
-            html_parts.append(f'<div class="section-anschreiben">{raw_html}</div>')
-        else:
-            raw_html = re.sub(r'<h1>\s*LEBENSLAUF\s*</h1>', '', raw_html, flags=re.IGNORECASE)
-            html_parts.append(f'<div class="section-lebenslauf">{raw_html}</div>')
-            
-    content_html = '<div class="page-break"></div>'.join(html_parts)
-    
     styled_html = f"""<!DOCTYPE html>
-<html lang="de">
+<html lang="{language}">
 <head>
     <meta charset="utf-8">
     <title>Bewerbungsunterlagen - Gregor Nottmeier</title>
@@ -192,20 +192,19 @@ def convert_markdown_to_styled_html(markdown_text):
             padding: 0;
         }}
         
-        /* Page Break Control */
-        .page-break {{
-            page-break-before: always;
-            page-break-after: always;
-            clear: both;
-            display: block;
-            height: 0;
-            margin: 0;
-            padding: 0;
-        }}
-        
         .section-anschreiben {{
             font-size: 9.2pt;
             line-height: 1.45;
+        }}
+
+        .section-anschreiben code {{
+            background-color: transparent !important;
+            color: inherit !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            font-size: inherit !important;
+            font-family: inherit !important;
+            border: none !important;
         }}
         
         .section-lebenslauf {{
@@ -349,32 +348,44 @@ def main():
     role = evaluation_result.get("extracted_role", job_info["role"])
     is_match = evaluation_result.get("match", False)
     score = evaluation_result.get("fit_score", 0)
+    language = evaluation_result.get("detected_language", "de")
     
     print(f"\nErgebnis für {company} - {role}:")
-    print(f"Match: {is_match} | Score: {score}/100")
+    print(f"Match: {is_match} | Score: {score}/100 | Sprache: {language.upper()}")
     print(f"Begründung: {evaluation_result.get('reasoning', '')}\n")
 
     if is_match and score >= 75:
         print("--> Super Match! Generierung läuft...")
-        final_document = generate_application(job_info, ssot_data, cv_prompt, cv_template)
+        final_document = generate_application(job_info, ssot_data, cv_prompt, cv_template, language=language)
         
-        # 1. Sauber formatierte Dateinamen
+        # 1. Dokumententrennung (Cover Letter vs CV)
+        parts = re.split(r'<!--\s*(?:DOCUMENT_SPLIT|PAGE_BREAK)\s*-->|&lt;!--\s*(?:DOCUMENT_SPLIT|PAGE_BREAK)\s*--&gt;', final_document)
+        cover_letter_md = parts[0].strip() if len(parts) > 0 else ""
+        cv_md = parts[1].strip() if len(parts) > 1 else (parts[0].strip() if len(parts) == 1 else "")
+        
+        # 2. Ordner & Dateinamen definieren
         clean_company = re.sub(r'[^\w\-]', '_', company).strip('_')
         clean_role = re.sub(r'[^\w\-]', '_', role).strip('_')
-        base_filename = f"MANUAL_{clean_company}_{clean_role}"
+        folder_name = f"MANUAL_{clean_company}_{clean_role}"
+        job_output_dir = os.path.join(OUTPUT_DIR, folder_name)
+        os.makedirs(job_output_dir, exist_ok=True)
         
-        md_file_path = os.path.join(OUTPUT_DIR, f"{base_filename}.md")
-        pdf_file_path = os.path.join(OUTPUT_DIR, f"{base_filename}.pdf")
+        cl_suffix = "CoverLetter" if language == "en" else "Anschreiben"
+        base_prefix = f"MANUAL_{clean_company}_{clean_role}"
         
-        # 2. Markdown speichern
-        with open(md_file_path, 'w', encoding='utf-8') as out_f:
-            out_f.write(final_document)
+        cl_md_path = os.path.join(job_output_dir, f"{base_prefix}_{cl_suffix}.md")
+        cl_pdf_path = os.path.join(job_output_dir, f"{base_prefix}_{cl_suffix}.pdf")
+        cv_md_path = os.path.join(job_output_dir, f"{base_prefix}_CV.md")
+        cv_pdf_path = os.path.join(job_output_dir, f"{base_prefix}_CV.pdf")
+        
+        # 3. Markdown-Dateien speichern
+        with open(cl_md_path, 'w', encoding='utf-8') as out_f:
+            out_f.write(cover_letter_md)
+        with open(cv_md_path, 'w', encoding='utf-8') as out_f:
+            out_f.write(cv_md)
             
-        # 3. HTML mit Executive CSS konvertieren
-        styled_html = convert_markdown_to_styled_html(final_document)
-        
-        # 4. HTML als PDF rendern mit optimierten Druck-Optionen
-        print("[4] Rendere PDF-Dokument mit Executive Styling...")
+        # 4. HTML Konvertierung & PDFs rendern
+        print("[4] Rendere Anschreiben- & CV-PDFs im eigenen Job-Ordner...")
         pdf_options = {
             'page-size': 'A4',
             'margin-top': '10mm',
@@ -386,11 +397,18 @@ def main():
             'quiet': ''
         }
         
-        pdfkit.from_string(styled_html, pdf_file_path, options=pdf_options)
+        cl_html = convert_markdown_to_styled_html(cover_letter_md, doc_type="cover_letter", language=language)
+        cv_html = convert_markdown_to_styled_html(cv_md, doc_type="cv", language=language)
+        
+        pdfkit.from_string(cl_html, cl_pdf_path, options=pdf_options)
+        pdfkit.from_string(cv_html, cv_pdf_path, options=pdf_options)
             
-        print(f"\n[ERFOLG] Dokumente gespeichert unter:")
-        print(f" - Markdown: {md_file_path}")
-        print(f" - PDF:      {pdf_file_path}")
+        print(f"\n[ERFOLG] Alle Dokumente wurden im Job-Ordner gespeichert:")
+        print(f" Ordner: {job_output_dir}")
+        print(f"  - Anschreiben MD:  {os.path.basename(cl_md_path)}")
+        print(f"  - Anschreiben PDF: {os.path.basename(cl_pdf_path)}")
+        print(f"  - CV MD:           {os.path.basename(cv_md_path)}")
+        print(f"  - CV PDF:          {os.path.basename(cv_pdf_path)}")
     else:
         print("--> Der Evaluator rät von dieser Stelle ab. Keine Dokumente generiert.")
 
