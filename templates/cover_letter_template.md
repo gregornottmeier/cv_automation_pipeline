@@ -37,11 +37,6 @@ Location: Mannheim, Germany
 
 ---
 
-**To:**
-[Company Name]
-[Location / Address]
-
-**Date:** [Current Date]
 
 ### **Application for [Job Title]**
 

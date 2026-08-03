@@ -477,12 +477,12 @@ def main():
         # 2. Ordner & Dateinamen definieren
         clean_company = re.sub(r'[^\w\-]', '_', company).strip('_')
         clean_role = re.sub(r'[^\w\-]', '_', role).strip('_')
-        folder_name = f"MANUAL_{clean_company}_{clean_role}"
+        folder_name = f"{clean_company}_{clean_role}"
         job_output_dir = os.path.join(OUTPUT_DIR, folder_name)
         os.makedirs(job_output_dir, exist_ok=True)
         
         cl_suffix = "CoverLetter" if language == "en" else "Anschreiben"
-        base_prefix = f"MANUAL_{clean_company}_{clean_role}"
+        base_prefix = f"{clean_company}_{clean_role}"
         
         cl_md_path = os.path.join(job_output_dir, f"{base_prefix}_{cl_suffix}.md")
         cl_pdf_path = os.path.join(job_output_dir, f"{base_prefix}_{cl_suffix}.pdf")
