@@ -9,12 +9,6 @@ Wohnort: Mannheim, Deutschland
 
 ---
 
-**An:**
-[Unternehmensname]
-[Standort / Adresse]
-
-**Datum:** [Aktuelles Datum]
-
 ### **Bewerbung als [Stellenbezeichnung]**
 
 Sehr geehrte Damen und Herren, / Sehr geehrte(r) [Ansprechpartner],

@@ -115,7 +115,7 @@ def evaluate_job(job_info, ssot_data, eval_prompt):
     full_prompt = f"{eval_prompt}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
     
     response = client.models.generate_content(
-        model='gemini-3.6-flash',
+        model='gemini-3.5-flash',
         contents=full_prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json"
@@ -166,6 +166,10 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
         raw_html = re.sub(r'<h1>\s*(ANSCHREIBEN|COVER LETTER)\s*</h1>', '', raw_html, flags=re.IGNORECASE)
         content_html = f'<div class="section-anschreiben">{raw_html}</div>'
     else:
+        # 1. Strip list bullet markers (- or *) from project and experience category headers
+        markdown_text = re.sub(r'^\s*[\*\-]\s+(\*\*(?:Technical Implementation|Impact & Results|Impact|Technical Realization|Core Responsibilities & Impact)\:?\*\*)', r'\1', markdown_text, flags=re.MULTILINE | re.IGNORECASE)
+        # 2. Standardize bold section category labels and remove any accidental asterisks surrounding category headers
+        markdown_text = re.sub(r'\*+(Technical Implementation|Impact & Results|Impact|Technical Realization|Core Responsibilities & Impact)\:?\*+', r'**\1:**', markdown_text, flags=re.IGNORECASE)
         raw_html = markdown.markdown(markdown_text.strip(), extensions=['tables', 'fenced_code', 'attr_list'])
         raw_html = re.sub(r'<h1>\s*(LEBENSLAUF|CV|RESUME)\s*</h1>', '', raw_html, flags=re.IGNORECASE)
         content_html = f'<div class="section-lebenslauf">{raw_html}</div>'
@@ -209,7 +213,59 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
         
         .section-lebenslauf {{
             font-size: 8.8pt;
-            line-height: 1.35;
+            line-height: 1.36;
+        }}
+
+        .section-lebenslauf h2 {{
+            font-size: 10pt;
+            font-weight: 700;
+            color: #1e3a8a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 11px;
+            margin-bottom: 5px;
+            padding-bottom: 2px;
+            border-bottom: 1.5px solid #cbd5e1;
+        }}
+        
+        .section-lebenslauf h3 {{
+            font-size: 9.5pt;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 8px;
+            margin-bottom: 2px;
+        }}
+
+        .section-lebenslauf p {{
+            margin-top: 0;
+            margin-bottom: 4px;
+        }}
+
+        .section-lebenslauf strong,
+        .section-lebenslauf p strong,
+        .section-lebenslauf li strong {{
+            color: #1e3a8a !important;
+            font-weight: 600;
+        }}
+
+        .section-lebenslauf p em {{
+            color: #475569;
+            font-style: normal;
+        }}
+
+        .section-lebenslauf ul {{
+            margin-top: 2px;
+            margin-bottom: 6px;
+            padding-left: 0 !important;
+            list-style-type: none !important;
+        }}
+        
+        .section-lebenslauf li {{
+            margin-bottom: 3px;
+            line-height: 1.38;
+            color: #1e293b;
+            list-style-type: none !important;
+            padding-left: 0 !important;
         }}
         
         /* Headings Styling */
@@ -252,15 +308,19 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
         ul {{
             margin-top: 2px;
             margin-bottom: 6px;
-            padding-left: 14px;
+            padding-left: 0;
+            list-style-type: none;
         }}
         
         li {{
-            margin-bottom: 2px;
+            margin-bottom: 3px;
+            line-height: 1.38;
+            color: #1e293b;
+            list-style-type: none;
         }}
         
         strong {{
-            color: #0f172a;
+            color: #1e3a8a;
             font-weight: 600;
         }}
         
@@ -301,14 +361,14 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
 
         /* Code & Badge formatting */
         code {{
-            background-color: #eff6ff;
-            color: #1d4ed8;
-            padding: 1px 5px;
+            background-color: #f1f5f9;
+            color: #1e3a8a;
+            padding: 1px 4px;
             border-radius: 3px;
-            font-size: 8.2pt;
+            font-size: 8pt;
             font-family: 'Inter', sans-serif;
             font-weight: 500;
-            border: 1px solid #bfdbfe;
+            border: 1px solid #cbd5e1;
         }}
     </style>
 </head>
@@ -317,6 +377,57 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
 </body>
 </html>"""
     return styled_html
+
+def trim_least_important_experience(md_text):
+    pattern = r'(##\s*(?:PROFESSIONAL EXPERIENCE|BERUFSERFAHRUNG|WORK EXPERIENCE).*?)(?=\n##\s+|\Z)'
+    match = re.search(pattern, md_text, flags=re.DOTALL | re.IGNORECASE)
+    if not match:
+        return md_text, False
+
+    section_text = match.group(1)
+    entries = re.split(r'(\n###\s+)', section_text)
+    
+    if len(entries) <= 3:
+        return md_text, False
+        
+    trimmed_section = "".join(entries[:-2]).strip()
+    new_md_text = md_text[:match.start(1)] + trimmed_section + "\n\n" + md_text[match.end(1):]
+    return new_md_text, True
+
+def render_cv_pdf_with_page_limit(cv_md_path, cv_pdf_path, pdf_options, language="en"):
+    with open(cv_md_path, 'r', encoding='utf-8') as f:
+        cv_md = f.read()
+
+    cv_html = convert_markdown_to_styled_html(cv_md, doc_type="cv", language=language)
+    pdfkit.from_string(cv_html, cv_pdf_path, options=pdf_options)
+
+    try:
+        import fitz
+        doc = fitz.open(cv_pdf_path)
+        page_count = len(doc)
+        doc.close()
+    except Exception as e:
+        print(f"[PAGE CHECK] Could not check PDF page count: {e}")
+        return
+
+    while page_count > 1:
+        print(f"[AUTO-PAGE-FIT] CV PDF is {page_count} pages (exceeds 1 page limit). Trimming least important entry from Professional Experience...")
+        new_cv_md, trimmed = trim_least_important_experience(cv_md)
+        if not trimmed:
+            print("[AUTO-PAGE-FIT] Reached minimum entries in Professional Experience, cannot trim further.")
+            break
+        
+        cv_md = new_cv_md
+        with open(cv_md_path, 'w', encoding='utf-8') as f:
+            f.write(cv_md)
+            
+        cv_html = convert_markdown_to_styled_html(cv_md, doc_type="cv", language=language)
+        pdfkit.from_string(cv_html, cv_pdf_path, options=pdf_options)
+
+        doc = fitz.open(cv_pdf_path)
+        page_count = len(doc)
+        doc.close()
+        print(f"[AUTO-PAGE-FIT] New CV PDF page count: {page_count}")
 
 # ==========================================
 # HAUPT-WORKFLOW
@@ -398,10 +509,10 @@ def main():
         }
         
         cl_html = convert_markdown_to_styled_html(cover_letter_md, doc_type="cover_letter", language=language)
-        cv_html = convert_markdown_to_styled_html(cv_md, doc_type="cv", language=language)
-        
         pdfkit.from_string(cl_html, cl_pdf_path, options=pdf_options)
-        pdfkit.from_string(cv_html, cv_pdf_path, options=pdf_options)
+        
+        # Enforce 1 page max limit for CV
+        render_cv_pdf_with_page_limit(cv_md_path, cv_pdf_path, pdf_options, language=language)
             
         print(f"\n[ERFOLG] Alle Dokumente wurden im Job-Ordner gespeichert:")
         print(f" Ordner: {job_output_dir}")
