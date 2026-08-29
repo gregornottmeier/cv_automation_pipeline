@@ -2,6 +2,8 @@ import os
 import sys
 import json
 import re
+import time
+from datetime import datetime
 import requests
 import markdown
 import pdfkit
@@ -30,6 +32,34 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "output", "ready_to_send")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+CANDIDATE_MODELS = [
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+    'gemini-flash-latest',
+    'gemini-3-flash-preview'
+]
+
+def generate_content_with_retry_and_fallback(contents, config=None):
+    last_exception = None
+    for model in CANDIDATE_MODELS:
+        for attempt in range(3):
+            try:
+                if config:
+                    response = client.models.generate_content(model=model, contents=contents, config=config)
+                else:
+                    response = client.models.generate_content(model=model, contents=contents)
+                return response.text
+            except Exception as e:
+                last_exception = e
+                err_msg = str(e)
+                if "503" in err_msg or "high demand" in err_msg.lower() or "unavailable" in err_msg.lower() or "429" in err_msg:
+                    time.sleep(2)
+                elif "404" in err_msg or "not_found" in err_msg.lower():
+                    break
+                else:
+                    time.sleep(1)
+    raise RuntimeError(f"Alle Gemini-Modelle fehlgeschlagen. Letzter Fehler: {last_exception}")
+
 # ==========================================
 # HILFSFUNKTIONEN & EXTRAKTION
 # ==========================================
@@ -38,65 +68,42 @@ def fetch_job_description(url):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
+    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code != 200:
-            print(f"Fehler: Webseite gab Status Code {response.status_code} zurück.")
-            return None
+        res = requests.get(url, headers=headers, timeout=15)
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, 'html.parser')
 
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # 1. Unternehmensname
-        company = None
-        comp_elem = soup.find('a', class_='topcard__org-name-link') or soup.find('a', class_='sub-nav-cta__optional-url')
-        if comp_elem:
-            company = comp_elem.get_text(strip=True)
-        elif soup.title:
-            title_text = soup.title.get_text()
-            if " hiring " in title_text:
-                company = title_text.split(" hiring ")[0].strip()
-            elif " bei " in title_text:
-                company = title_text.split(" bei ")[1].split("|")[0].strip()
+        title_tag = soup.find('h1') or soup.find('title')
+        role = title_tag.get_text(strip=True) if title_tag else "Nicht angegeben"
 
-        # 2. Stellenbezeichnung (Role)
-        role = None
-        role_elem = soup.find('h1', class_='top-card-layout__title') or soup.find('h3', class_='sub-nav-cta__header')
-        if role_elem:
-            role = role_elem.get_text(strip=True)
-        elif soup.title:
-            title_text = soup.title.get_text()
-            if " hiring " in title_text:
-                role = title_text.split(" hiring ")[1].split(" in ")[0].split("|")[0].strip()
+        company_tag = soup.find('a', class_='topcard__org-name-link') or soup.find('span', class_='topcard__flavor')
+        company = company_tag.get_text(strip=True) if company_tag else "Nicht angegeben"
 
-        # 3. Standort (Location)
-        location = None
-        loc_elem = soup.find('span', class_='topcard__flavor--bullet') or soup.find('span', class_='sub-nav-cta__meta-text')
-        if loc_elem:
-            location = loc_elem.get_text(strip=True)
+        location_tag = soup.find('span', class_='topcard__flavor--bullet') or soup.find('span', class_='topcard__flavor')
+        location = location_tag.get_text(strip=True) if location_tag else "Nicht angegeben"
 
-        # 4. Haupt-Stellenbeschreibung
-        desc_text = ""
-        desc_div = soup.find('div', class_='show-more-less-html__markup')
-        if desc_div:
-            desc_text = desc_div.get_text(separator='\n', strip=True)
-        else:
-            desc_text = soup.body.get_text(separator='\n', strip=True)[:3000]
-
-        # 5. Ansprechperson suchen (falls im Text erwähnt)
         contact = "Nicht angegeben"
-        contact_match = re.search(r'(?:Ansprechpartner|Ansprechperson|Recruiter|Contact|Hiring Manager)\s*:\s*([A-Za-zÄöüß\s\.\-]+)', desc_text, re.IGNORECASE)
-        if contact_match:
-            contact = contact_match.group(1).strip()
+        
+        description_div = soup.find('div', class_='show-more-less-html__markup') or soup.find('div', class_='description__text')
+        
+        if description_div:
+            for element in description_div(['script', 'style', 'button', 'header']):
+                element.decompose()
+            desc_text = description_div.get_text(separator='\n', strip=True)
+        else:
+            desc_text = soup.get_text(separator='\n', strip=True)
 
-        metadata_block = f"""METADATEN DER STELLENANZEIGE:
-- Unternehmen (Company): {company or 'Nicht angegeben'}
-- Stellenbezeichnung (Role): {role or 'Nicht angegeben'}
-- Standort (Location): {location or 'Nicht angegeben'}
-- Ansprechperson (Contact): {contact}
+        metadata_block = f"""
+TARGET_JOB METADATA:
+- Extracted Company Name: {company}
+- Extracted Role Title: {role}
+- Extracted Job Location: {location}
+- Extracted Recruiter / Contact Person: {contact}
 
-STELLENBESCHREIBUNG:
-{desc_text}"""
-
+TARGET_JOB DESCRIPTION / REQUIREMENTS:
+{desc_text}
+"""
         return {
             "company": company or "Nicht angegeben",
             "role": role or "Nicht angegeben",
@@ -110,19 +117,52 @@ STELLENBESCHREIBUNG:
         print(f"Fehler beim Abrufen der URL: {e}")
         return None
 
+def clean_and_parse_json(raw_text):
+    text = raw_text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    codeblock_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if codeblock_match:
+        try:
+            return json.loads(codeblock_match.group(1))
+        except Exception:
+            pass
+    json_match = re.search(r"(\{.*\})", text, re.DOTALL)
+    if json_match:
+        potential_json = json_match.group(1).strip()
+        brace_count = 0
+        end_idx = -1
+        for i, char in enumerate(potential_json):
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    end_idx = i + 1
+                    break
+        if end_idx != -1:
+            try:
+                return json.loads(potential_json[:end_idx])
+            except Exception:
+                pass
+        try:
+            return json.loads(potential_json)
+        except Exception:
+            pass
+    raise ValueError("Konnte kein gültiges JSON im LLM-Output finden.")
+
 def evaluate_job(job_info, ssot_data, eval_prompt):
     print("[2] Evaluiere Job-Match mit deinem Profil...")
     full_prompt = f"{eval_prompt}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
     
-    response = client.models.generate_content(
-        model='gemini-3.5-flash',
-        contents=full_prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json"
-        )
-    )
     try:
-        eval_dict = json.loads(response.text)
+        res_text = generate_content_with_retry_and_fallback(
+            full_prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json")
+        )
+        eval_dict = clean_and_parse_json(res_text)
         if eval_dict.get("extracted_company", "Nicht angegeben") in ["Nicht angegeben", "Unknown_Company"]:
             eval_dict["extracted_company"] = job_info["company"]
         if eval_dict.get("extracted_role", "Nicht angegeben") in ["Nicht angegeben", "Unknown_Role"]:
@@ -147,16 +187,23 @@ def evaluate_job(job_info, ssot_data, eval_prompt):
             "extracted_contact": job_info["contact"]
         }
 
+def get_current_date_str(language="de"):
+    today = datetime.now()
+    de_months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
+    en_months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    if language == "en":
+        return f"{today.day} {en_months[today.month - 1]} {today.year}"
+    else:
+        return f"{today.day}. {de_months[today.month - 1]} {today.year}"
+
 def generate_application(job_info, ssot_data, cv_prompt, template, language="de"):
     print(f"[3] Erstelle maßgeschneiderten Lebenslauf und Anschreiben (Sprache: {language.upper()})...")
+    current_date = get_current_date_str(language)
     lang_instruction = f"WICHTIGE SPRACHVORGABE: Generiere BEIDE Dokumente (Anschreiben & Lebenslauf) strikt auf {'Englisch' if language == 'en' else 'Deutsch'}!"
-    full_prompt = f"{cv_prompt}\n\n{lang_instruction}\n\nHier ist das Template / Referenz:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
+    date_instruction = f"AKTUELLES DATUM (CURRENT_DATE): {current_date}"
+    full_prompt = f"{cv_prompt}\n\n{lang_instruction}\n{date_instruction}\n\nHier ist das Template / Referenz:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info['full_job_prompt']}"
     
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=full_prompt
-    )
-    return response.text
+    return generate_content_with_retry_and_fallback(full_prompt)
 
 def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", language="de"):
     if doc_type == "cover_letter":

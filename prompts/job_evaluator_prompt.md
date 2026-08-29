@@ -7,7 +7,7 @@ INPUTS:
 HARD-FILTER (K.O.-Kriterien):
 Die Stelle fällt sofort durch ("match": false), wenn eines dieser Kriterien nicht erfüllt ist:
 - Art: Es MUSS ein Praktikum (Internship) sein.
-- Standort: MUSS in oder remote für München, Frankfurt (Rhein-Main), Basel/Freiburg, Köln/Düsseldorf, Paris, Zürich, Region Stuttgart, Rhein-Neckar oder Berlin sein.
+- Standort: MUSS in oder remote für Region München, Frankfurt (Rhein-Main), Basel/Freiburg, Köln/Düsseldorf, Paris, Zürich, Region Stuttgart, Rhein-Neckar oder Berlin sein.
 - Domäne: MUSS einen klaren Bezug zu AI Engineering, AI Research, Computer Vision, Vision-Language Models (VLM), Vision-Language-Action Models (VLA) oder Robotik haben.
 - Tech-Stack: Die Stelle darf nicht ausschließlich tiefes C++ Engineering erfordern (der Kandidat nutzt primär Python/PyTorch).
 

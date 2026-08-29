@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import time
+from datetime import datetime
 import requests
 import markdown
 import pdfkit
@@ -30,22 +32,84 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "output", "ready_to_send")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+CANDIDATE_MODELS = [
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+    'gemini-flash-latest',
+    'gemini-3-flash-preview'
+]
+
+def generate_content_with_retry_and_fallback(contents, config=None):
+    last_exception = None
+    for model in CANDIDATE_MODELS:
+        for attempt in range(3):
+            try:
+                if config:
+                    response = client.models.generate_content(model=model, contents=contents, config=config)
+                else:
+                    response = client.models.generate_content(model=model, contents=contents)
+                return response.text
+            except Exception as e:
+                last_exception = e
+                err_msg = str(e)
+                if "503" in err_msg or "high demand" in err_msg.lower() or "unavailable" in err_msg.lower() or "429" in err_msg:
+                    time.sleep(2)
+                elif "404" in err_msg or "not_found" in err_msg.lower():
+                    break
+                else:
+                    time.sleep(1)
+    raise RuntimeError(f"Alle Gemini-Modelle fehlgeschlagen. Letzter Fehler: {last_exception}")
+
 def read_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as file:
         return file.read()
+
+def clean_and_parse_json(raw_text):
+    text = raw_text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    codeblock_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if codeblock_match:
+        try:
+            return json.loads(codeblock_match.group(1))
+        except Exception:
+            pass
+    json_match = re.search(r"(\{.*\})", text, re.DOTALL)
+    if json_match:
+        potential_json = json_match.group(1).strip()
+        brace_count = 0
+        end_idx = -1
+        for i, char in enumerate(potential_json):
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    end_idx = i + 1
+                    break
+        if end_idx != -1:
+            try:
+                return json.loads(potential_json[:end_idx])
+            except Exception:
+                pass
+        try:
+            return json.loads(potential_json)
+        except Exception:
+            pass
+    raise ValueError("Konnte kein gültiges JSON im LLM-Output finden.")
 
 def evaluate_job(job_info, ssot_data, eval_prompt):
     print("\n[Phase 1] Analysiere Job-Match...")
     full_prompt = f"{eval_prompt}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info.get('full_job_prompt', job_info.get('raw_text', ''))}"
     
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=full_prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json")
-    )
-    
     try:
-        eval_dict = json.loads(response.text)
+        res_text = generate_content_with_retry_and_fallback(
+            full_prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json")
+        )
+        eval_dict = clean_and_parse_json(res_text)
         if eval_dict.get("extracted_company", "Nicht angegeben") in ["Nicht angegeben", "Unknown_Company"]:
             eval_dict["extracted_company"] = job_info.get("company", "Unknown_Company")
         if eval_dict.get("extracted_role", "Nicht angegeben") in ["Nicht angegeben", "Unknown_Role"]:
@@ -55,17 +119,24 @@ def evaluate_job(job_info, ssot_data, eval_prompt):
         return eval_dict
     except Exception as e:
         print(f"Fehler beim Parsen der API-Antwort: {e}")
-        return {"match": False, "fit_score": 0, "reasoning": "JSON Parsing Error", "detected_language": "de"}
+        return {"match": False, "fit_score": 0, "reasoning": f"JSON Parsing Error: {e}", "detected_language": "de"}
+
+def get_current_date_str(language="de"):
+    today = datetime.now()
+    de_months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
+    en_months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    if language == "en":
+        return f"{today.day} {en_months[today.month - 1]} {today.year}"
+    else:
+        return f"{today.day}. {de_months[today.month - 1]} {today.year}"
 
 def generate_application(job_info, ssot_data, cv_prompt, template, language="de"):
     print(f"[Phase 2] Erstelle maßgeschneiderten Lebenslauf und Anschreiben (Sprache: {language.upper()})...")
+    current_date = get_current_date_str(language)
     lang_instruction = f"WICHTIGE SPRACHVORGABE: Generiere BEIDE Dokumente (Anschreiben & Lebenslauf) strikt auf {'Englisch' if language == 'en' else 'Deutsch'}!"
-    full_prompt = f"{cv_prompt}\n\n{lang_instruction}\n\nHier ist das Template:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info.get('full_job_prompt', job_info.get('raw_text', ''))}"
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=full_prompt
-    )
-    return response.text
+    date_instruction = f"AKTUELLES DATUM (CURRENT_DATE): {current_date}"
+    full_prompt = f"{cv_prompt}\n\n{lang_instruction}\n{date_instruction}\n\nHier ist das Template:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info.get('full_job_prompt', job_info.get('raw_text', ''))}"
+    return generate_content_with_retry_and_fallback(full_prompt)
 
 def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", language="de"):
     if doc_type == "cover_letter":

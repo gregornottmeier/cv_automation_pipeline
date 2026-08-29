@@ -11,7 +11,7 @@ Wohnort / Location: Mannheim, Deutschland / Germany
 [Unternehmensname / Company Name]
 [Standort / Location / Address]
 
-**Datum / Date:** [Aktuelles Datum / Current Date]
+**Datum / Date:** [CURRENT_DATE]
 
 ### **Bewerbung als [Stellenbezeichnung] / Application for [Job Title]**
 
