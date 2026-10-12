@@ -6,16 +6,15 @@ INPUTS:
 
 HARD-FILTER (K.O.-Kriterien):
 Die Stelle fällt sofort durch ("match": false), wenn eines dieser Kriterien nicht erfüllt ist:
-- Art: Es MUSS ein Praktikum (Internship) sein.
-- Standort: MUSS in oder remote für Region München, Frankfurt (Rhein-Main), Basel/Freiburg, Köln/Düsseldorf, Paris, Zürich, Region Stuttgart, Rhein-Neckar oder Berlin sein.
-- Domäne: MUSS einen klaren Bezug zu AI Engineering, AI Research, Computer Vision, Vision-Language Models (VLM), Vision-Language-Action Models (VLA) oder Robotik haben.
-- Tech-Stack: Die Stelle darf nicht ausschließlich tiefes C++ Engineering erfordern (der Kandidat nutzt primär Python/PyTorch).
+- Art: Es MUSS ein Praktikum (Internship) oder eine Werkstudenten Stelle sein.
+- Domäne: MUSS einen klaren Bezug zu AI Engineering, AI Research, Computer Vision, Vision-Language Models (VLM), Vision-Language-Action Models (VLA), Robotik oder Data Science/Analytics haben.
 
 EVALUIERUNGS-REGELN:
 1. Prüfe die Hard-Filter rigoros. 
-2. Berechne einen "fit_score" von 0 bis 100 basierend auf der Überschneidung des Tech-Stacks und der Domänen-Erfahrung (z.B. RLHF, Spatio-Temporal Data, BCI).
-3. Begründe deine Entscheidung analytisch in maximal 2 Sätzen.
-4. Erkenne die Hauptsprache der Stellenanzeige ("de" für Deutsch, "en" für Englisch).
+2. Berechne einen "fit_score" von 0 bis 100 basierend auf der Überschneidung des Tech-Stacks und der Domänen-Erfahrung.
+3. Analysiere die Jobbeschreibung und wähle exakt die Top 3 Projekte (als ID Strings aus der SSOT), die am besten zur Rolle passen.
+4. Begründe deine Entscheidung analytisch in maximal 2 Sätzen.
+5. Erkenne die Hauptsprache der Stellenanzeige ("de" für Deutsch, "en" für Englisch).
 
 OUTPUT-FORMAT (Du darfst ausschließlich valides JSON ausgeben!):
 {
@@ -26,5 +25,6 @@ OUTPUT-FORMAT (Du darfst ausschließlich valides JSON ausgeben!):
   "extracted_company": "[Name des Unternehmens]",
   "extracted_role": "[Exakte Stellenbezeichnung]",
   "extracted_location": "[Standort des Unternehmens]",
-  "extracted_contact": "[Name der Ansprechperson / Recruiter, falls vorhanden, sonst 'Nicht angegeben']"
+  "extracted_contact": "[Name der Ansprechperson / Recruiter, falls vorhanden, sonst 'Nicht angegeben']",
+  "selected_project_ids": ["[id_1]", "[id_2]", "[id_3]"]
 }

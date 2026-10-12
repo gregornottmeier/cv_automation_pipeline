@@ -27,7 +27,9 @@ SSOT_PATH = os.path.join(BASE_DIR, "data", "ssot_profile.json")
 SCRAPED_JOBS_PATH = os.path.join(BASE_DIR, "data", "scraped_jobs.json")
 EVAL_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "job_evaluator_prompt.md")
 CV_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "cv_system_prompt.md")
-TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "cv_template.md")
+CL_PROMPT_PATH = os.path.join(BASE_DIR, "prompts", "cover_letter_system_prompt.md")
+CV_TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "cv_template.md")
+CL_TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "cover_letter_template.md")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output", "ready_to_send")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -130,12 +132,43 @@ def get_current_date_str(language="de"):
     else:
         return f"{today.day}. {de_months[today.month - 1]} {today.year}"
 
-def generate_application(job_info, ssot_data, cv_prompt, template, language="de"):
-    print(f"[Phase 2] Erstelle maßgeschneiderten Lebenslauf und Anschreiben (Sprache: {language.upper()})...")
+def generate_cv(job_info, ssot_data, cv_prompt, template, language="de"):
+    print(f"[Phase 2a] Erstelle maßgeschneiderten Lebenslauf (Sprache: {language.upper()})...")
     current_date = get_current_date_str(language)
-    lang_instruction = f"WICHTIGE SPRACHVORGABE: Generiere BEIDE Dokumente (Anschreiben & Lebenslauf) strikt auf {'Englisch' if language == 'en' else 'Deutsch'}!"
+    lang_instruction = f"WICHTIGE SPRACHVORGABE: Generiere den Lebenslauf strikt auf {'Englisch' if language == 'en' else 'Deutsch'}!"
     date_instruction = f"AKTUELLES DATUM (CURRENT_DATE): {current_date}"
-    full_prompt = f"{cv_prompt}\n\n{lang_instruction}\n{date_instruction}\n\nHier ist das Template:\n{template}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info.get('full_job_prompt', job_info.get('raw_text', ''))}"
+    title_instruction = (
+        "WICHTIGE TITELVORGABE: Für die deutsche Version muss das Dokument zwingend mit '# LEBENSLAUF' beginnen. "
+        "Für die englische Version muss das Dokument zwingend mit '# RESUME' beginnen. "
+        "Verwende NIEMALS kombinierte Titel wie 'LEBENSLAUF / RESUME', 'CV / RESUME' oder 'RESUME / CV'!"
+    )
+    structure_instruction = "STRUKTUR-VORGABE: Nutze das folgende Template ausschließlich als Struktur- und Formatierungsvorlage (Markdown-Hierarchie, Abschnitte). Alle inhaltlichen Fakten, Kontaktdaten, Skills, Projekte, Erfahrungen und Ausbildungsdaten stammen strikt aus SSOT_PROFILE!"
+    
+    lang_section = "ENGLISH" if language == "en" else "GERMAN"
+    template_section = template
+    pattern = rf"##\s*{lang_section}.*?(?=(?:\n##\s+[A-Z]+|\Z))"
+    match = re.search(pattern, template, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        template_section = match.group(0).strip()
+
+    full_prompt = f"{cv_prompt}\n\n{lang_instruction}\n{date_instruction}\n{title_instruction}\n{structure_instruction}\n\nHier ist die Struktur-Vorlage (Template):\n{template_section}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nTARGET_JOB:\n{job_info.get('full_job_prompt', job_info.get('raw_text', ''))}"
+    return generate_content_with_retry_and_fallback(full_prompt)
+
+def generate_cover_letter(job_info, ssot_data, cv_text, cl_prompt, template, language="de"):
+    print(f"[Phase 2b] Erstelle passgenaues Anschreiben (Sprache: {language.upper()})...")
+    current_date = get_current_date_str(language)
+    lang_instruction = f"WICHTIGE SPRACHVORGABE: Generiere das Anschreiben strikt auf {'Englisch' if language == 'en' else 'Deutsch'}!"
+    date_instruction = f"AKTUELLES DATUM (CURRENT_DATE): {current_date}"
+    structure_instruction = "STRUKTUR-VORGABE: Nutze das folgende Template ausschließlich als Struktur- und Formatierungsvorlage für das Anschreiben. Alle Kontaktdaten und inhaltlichen Details stammen strikt aus SSOT_PROFILE und dem generierten Lebenslauf (GENERATED_CV)!"
+    
+    lang_section = "ENGLISH" if language == "en" else "GERMAN"
+    template_section = template
+    pattern = rf"##\s*{lang_section}.*?(?=(?:\n##\s+[A-Z]+|\Z))"
+    match = re.search(pattern, template, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        template_section = match.group(0).strip()
+
+    full_prompt = f"{cl_prompt}\n\n{lang_instruction}\n{date_instruction}\n{structure_instruction}\n\nHier ist die Anschreiben-Strukturvorlage (Template):\n{template_section}\n\n---\nSSOT_PROFILE:\n{ssot_data}\n\n---\nGENERATED_CV:\n{cv_text}\n\n---\nTARGET_JOB:\n{job_info.get('full_job_prompt', job_info.get('raw_text', ''))}"
     return generate_content_with_retry_and_fallback(full_prompt)
 
 def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", language="de"):
@@ -146,13 +179,37 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
         raw_html = re.sub(r'<h1>\s*(ANSCHREIBEN|COVER LETTER)\s*</h1>', '', raw_html, flags=re.IGNORECASE)
         content_html = f'<div class="section-anschreiben">{raw_html}</div>'
     else:
-        # 1. Strip list bullet markers (- or *) from project and experience category headers
-        markdown_text = re.sub(r'^\s*[\*\-]\s+(\*\*(?:Technical Implementation|Impact & Results|Impact|Technical Realization|Core Responsibilities & Impact)\:?\*\*)', r'\1', markdown_text, flags=re.MULTILINE | re.IGNORECASE)
-        # 2. Standardize bold section category labels and remove any accidental asterisks surrounding category headers
-        markdown_text = re.sub(r'\*+(Technical Implementation|Impact & Results|Impact|Technical Realization|Core Responsibilities & Impact)\:?\*+', r'**\1:**', markdown_text, flags=re.IGNORECASE)
+        # ERZWINGE LEERZEILE VOR LISTEN (Verhindert, dass der Markdown-Parser Listen ignoriert)
+        # Sucht nach Zeilen, die nicht mit einem Bullet Point starten, gefolgt von einem \n und einem Bullet Point
+        markdown_text = re.sub(r'^(?![\-\*]\s)(.+)\n([\-\*]\s)', r'\1\n\n\2', markdown_text, flags=re.MULTILINE)
+        
         raw_html = markdown.markdown(markdown_text.strip(), extensions=['tables', 'fenced_code', 'attr_list'])
-        raw_html = re.sub(r'<h1>\s*(LEBENSLAUF|CV|RESUME)\s*</h1>', '', raw_html, flags=re.IGNORECASE)
-        content_html = f'<div class="section-lebenslauf">{raw_html}</div>'
+        kicker_title = "RESUME" if language == "en" else "LEBENSLAUF"
+        raw_html = re.sub(
+            r'<h1>\s*(?:LEBENSLAUF\s*/\s*RESUME|RESUME\s*/\s*LEBENSLAUF|LEBENSLAUF\s*/\s*CV|RESUME\s*/\s*CV|LEBENSLAUF|RESUME|CV)\s*</h1>',
+            f'<div class="doc-kicker">{kicker_title}</div>',
+            raw_html,
+            flags=re.IGNORECASE,
+            count=1
+        )
+        raw_html = re.sub(
+            r'<h1>\s*(?:LEBENSLAUF\s*/\s*RESUME|RESUME\s*/\s*LEBENSLAUF|LEBENSLAUF\s*/\s*CV|RESUME\s*/\s*CV|LEBENSLAUF|RESUME|CV)\s*</h1>',
+            '',
+            raw_html,
+            flags=re.IGNORECASE
+        )
+        # Wrap sections (split by <hr /> or before <h2>) in <div class="cv-section"> to prevent pagebreaks within a section
+        parts = re.split(r'(?=<hr\s*/?>|<h2>)', raw_html)
+        wrapped_parts = []
+        for part in parts:
+            if not part.strip():
+                continue
+            if re.search(r'<h2>', part, re.IGNORECASE):
+                wrapped_parts.append(f'<div class="cv-section">{part}</div>')
+            else:
+                wrapped_parts.append(part)
+        wrapped_html = "".join(wrapped_parts)
+        content_html = f'<div class="section-lebenslauf">{wrapped_html}</div>'
         
     styled_html = f"""<!DOCTYPE html>
 <html lang="{language}">
@@ -169,6 +226,15 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
             color: #1e293b;
             background-color: #ffffff;
             margin: 0; padding: 0;
+        }}
+        .doc-kicker {{
+            font-size: 15pt;
+            font-weight: 800;
+            color: #1e3a8a;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 0;
+            margin-bottom: 2px;
         }}
         .section-anschreiben {{ font-size: 9.2pt; line-height: 1.45; }}
         .section-anschreiben code {{
@@ -187,7 +253,7 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
             color: #1e3a8a;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-top: 11px;
+            margin-top: 12px;
             margin-bottom: 5px;
             padding-bottom: 2px;
             border-bottom: 1.5px solid #cbd5e1;
@@ -204,20 +270,38 @@ def convert_markdown_to_styled_html(markdown_text, doc_type="cover_letter", lang
         .section-lebenslauf p strong,
         .section-lebenslauf li strong {{ color: #1e3a8a !important; font-weight: 600; }}
         .section-lebenslauf p em {{ color: #475569; font-style: normal; }}
-        .section-lebenslauf ul {{ margin-top: 2px; margin-bottom: 6px; padding-left: 0 !important; list-style-type: none !important; }}
-        .section-lebenslauf li {{ margin-bottom: 3px; line-height: 1.38; color: #1e293b; list-style-type: none !important; padding-left: 0 !important; }}
-        h1 {{ font-size: 15pt; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 4px; border-bottom: 2px solid #2563eb; }}
+        h1 {{ font-size: 16pt; font-weight: 700; color: #0f172a; margin-top: 2px; margin-bottom: 4px; border-bottom: 2px solid #2563eb; }}
         h2 {{ font-size: 10pt; font-weight: 600; color: #1e3a8a; text-transform: uppercase; margin-top: 10px; margin-bottom: 4px; border-bottom: 1px solid #cbd5e1; }}
         h3 {{ font-size: 9.2pt; font-weight: 600; color: #0f172a; margin-top: 6px; margin-bottom: 2px; }}
         p {{ margin-top: 0; margin-bottom: 5px; }}
-        ul {{ margin-top: 2px; margin-bottom: 6px; padding-left: 0; list-style-type: none; }}
-        li {{ margin-bottom: 3px; line-height: 1.38; color: #1e293b; list-style-type: none; }}
+        
+        /* KORRIGIERTE LISTEN-STYLES FÜR DAS GESAMTE DOKUMENT */
+        ul {{ margin-top: 4px; margin-bottom: 8px; padding-left: 18px; list-style-type: disc; }}
+        li {{ margin-bottom: 4px; line-height: 1.38; color: #1e293b; display: list-item; }}
+        
         strong {{ color: #1e3a8a; font-weight: 600; }}
         hr {{ border: none; border-top: 1px solid #e2e8f0; margin: 8px 0; }}
         table {{ width: 100%; border-collapse: collapse; margin-top: 4px; margin-bottom: 8px; }}
         th {{ background-color: #f1f5f9; color: #0f172a; padding: 4px 6px; border-bottom: 2px solid #cbd5e1; font-size: 8.5pt; }}
         td {{ padding: 4px 6px; border-bottom: 1px solid #e2e8f0; font-size: 8.5pt; }}
         code {{ background-color: #f1f5f9; color: #1e3a8a; padding: 1px 4px; border-radius: 3px; font-size: 8pt; font-family: 'Inter', sans-serif; font-weight: 500; border: 1px solid #cbd5e1; }}
+    
+        .cv-section {{
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }}
+        .cv-section h2, .cv-section h3 {{
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+        }}
+        .section-lebenslauf h2, .section-lebenslauf h3 {{
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+        }}
+        .section-lebenslauf ul, .section-lebenslauf p {{
+            orphans: 3;
+            widows: 3;
+        }}
     </style>
 </head>
 <body>
@@ -242,7 +326,7 @@ def trim_least_important_experience(md_text):
     new_md_text = md_text[:match.start(1)] + trimmed_section + "\n\n" + md_text[match.end(1):]
     return new_md_text, True
 
-def render_cv_pdf_with_page_limit(cv_md_path, cv_pdf_path, pdf_options, language="en"):
+def render_cv_pdf(cv_md_path, cv_pdf_path, pdf_options, language="en"):
     with open(cv_md_path, 'r', encoding='utf-8') as f:
         cv_md = f.read()
 
@@ -254,12 +338,13 @@ def render_cv_pdf_with_page_limit(cv_md_path, cv_pdf_path, pdf_options, language
         doc = fitz.open(cv_pdf_path)
         page_count = len(doc)
         doc.close()
+        print(f"[CV RENDER] Initial CV PDF page count: {page_count}")
     except Exception as e:
         print(f"[PAGE CHECK] Could not check PDF page count: {e}")
         return
 
-    while page_count > 1:
-        print(f"[AUTO-PAGE-FIT] CV PDF is {page_count} pages (exceeds 1 page limit). Trimming least important entry from Professional Experience...")
+    while page_count > 2:
+        print(f"[AUTO-PAGE-FIT] CV PDF is {page_count} pages (exceeds 2 page limit). Trimming least important entry from Professional Experience...")
         new_cv_md, trimmed = trim_least_important_experience(cv_md)
         if not trimmed:
             print("[AUTO-PAGE-FIT] Reached minimum entries in Professional Experience, cannot trim further.")
@@ -277,12 +362,18 @@ def render_cv_pdf_with_page_limit(cv_md_path, cv_pdf_path, pdf_options, language
         doc.close()
         print(f"[AUTO-PAGE-FIT] New CV PDF page count: {page_count}")
 
+# Backwards compatibility alias
+render_cv_pdf_with_page_limit = render_cv_pdf
+
+
 def main():
     try:
         ssot_data = read_file(SSOT_PATH)
         eval_prompt = read_file(EVAL_PROMPT_PATH)
         cv_prompt = read_file(CV_PROMPT_PATH)
-        cv_template = read_file(TEMPLATE_PATH)
+        cl_prompt = read_file(CL_PROMPT_PATH)
+        cv_template = read_file(CV_TEMPLATE_PATH)
+        cl_template = read_file(CL_TEMPLATE_PATH)
     except FileNotFoundError as e:
         print(f"Fehler: Datei nicht gefunden. {e}")
         return
@@ -319,11 +410,23 @@ def main():
         
         if is_match and score >= 75:
             print("--> Match erfolgreich! Starte Dokumentengenerierung...")
-            final_document = generate_application(job, ssot_data, cv_prompt, cv_template, language=language)
             
-            parts = re.split(r'<!--\s*(?:DOCUMENT_SPLIT|PAGE_BREAK)\s*-->|&lt;!--\s*(?:DOCUMENT_SPLIT|PAGE_BREAK)\s*--&gt;', final_document)
-            cover_letter_md = parts[0].strip() if len(parts) > 0 else ""
-            cv_md = parts[1].strip() if len(parts) > 1 else (parts[0].strip() if len(parts) == 1 else "")
+            # Extract and filter projects
+            selected_ids = evaluation_result.get("selected_project_ids", [])
+            filtered_ssot_str = ssot_data
+            if selected_ids:
+                try:
+                    ssot_json = json.loads(ssot_data)
+                    all_projects = ssot_json.get("basics", {}).get("projects", [])
+                    filtered_projects = [p for p in all_projects if p.get("id") in selected_ids]
+                    if filtered_projects:
+                        ssot_json["basics"]["projects"] = filtered_projects
+                        filtered_ssot_str = json.dumps(ssot_json, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    print(f"Fehler beim Filtern der Projekte: {e}")
+
+            cv_md = generate_cv(job, filtered_ssot_str, cv_prompt, cv_template, language=language)
+            cover_letter_md = generate_cover_letter(job, filtered_ssot_str, cv_md, cl_prompt, cl_template, language=language)
             
             clean_company = re.sub(r'[^\w\-]', '_', company).strip('_')
             clean_title = re.sub(r'[^\w\-]', '_', role).strip('_')
@@ -331,13 +434,22 @@ def main():
             job_output_dir = os.path.join(OUTPUT_DIR, folder_name)
             os.makedirs(job_output_dir, exist_ok=True)
             
-            cl_suffix = "CoverLetter" if language == "en" else "Anschreiben"
-            base_prefix = f"{clean_company}_{clean_title}"
-            
-            cl_md_path = os.path.join(job_output_dir, f"{base_prefix}_{cl_suffix}.md")
-            cl_pdf_path = os.path.join(job_output_dir, f"{base_prefix}_{cl_suffix}.pdf")
-            cv_md_path = os.path.join(job_output_dir, f"{base_prefix}_CV.md")
-            cv_pdf_path = os.path.join(job_output_dir, f"{base_prefix}_CV.pdf")
+            candidate_name = "GregorNottmeier"
+            try:
+                ssot_obj = json.loads(ssot_data) if isinstance(ssot_data, str) else ssot_data
+                raw_name = ssot_obj.get("basics", {}).get("name", "")
+                if raw_name:
+                    candidate_name = re.sub(r'[^\w]', '', raw_name)
+            except Exception:
+                pass
+
+            cl_base_name = f"CoverLetter_{candidate_name}"
+            cv_base_name = f"CV_{candidate_name}"
+
+            cl_md_path = os.path.join(job_output_dir, f"{cl_base_name}.md")
+            cl_pdf_path = os.path.join(job_output_dir, f"{cl_base_name}.pdf")
+            cv_md_path = os.path.join(job_output_dir, f"{cv_base_name}.md")
+            cv_pdf_path = os.path.join(job_output_dir, f"{cv_base_name}.pdf")
             
             with open(cl_md_path, 'w', encoding='utf-8') as out_f:
                 out_f.write(cover_letter_md)
@@ -358,13 +470,13 @@ def main():
             }
             pdfkit.from_string(cl_html, cl_pdf_path, options=pdf_options)
             
-            # Enforce 1 page max limit for CV
-            render_cv_pdf_with_page_limit(cv_md_path, cv_pdf_path, pdf_options, language=language)
+            # Render CV PDF
+            render_cv_pdf(cv_md_path, cv_pdf_path, pdf_options, language=language)
             
             print(f"Erfolg! Bewerbungsunterlagen gespeichert in:")
             print(f" Ordner: {job_output_dir}")
-            print(f"  - Anschreiben MD:  {os.path.basename(cl_md_path)}")
-            print(f"  - Anschreiben PDF: {os.path.basename(cl_pdf_path)}")
+            print(f"  - Cover Letter MD:  {os.path.basename(cl_md_path)}")
+            print(f"  - Cover Letter PDF: {os.path.basename(cl_pdf_path)}")
             print(f"  - CV MD:           {os.path.basename(cv_md_path)}")
             print(f"  - CV PDF:          {os.path.basename(cv_pdf_path)}")
         else:

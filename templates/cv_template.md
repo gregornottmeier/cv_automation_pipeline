@@ -1,102 +1,136 @@
-# ANSCHREIBEN / COVER LETTER
+# CV TEMPLATES
 
-**Gregor Nottmeier**
-E-Mail / Email: gregornottmeier@gmail.com | Telefon / Phone: +49 177 7934086 | Geburtsdatum / Date of Birth: 28.10.2001
-GitHub: https://github.com/gregornottmeier | LinkedIn: https://www.linkedin.com/in/gregor-nottmeier-265734205
-Wohnort / Location: Mannheim, Deutschland / Germany
+## GERMAN (Lebenslauf)
 
----
+# LEBENSLAUF
 
-**An / To:**
-[Unternehmensname / Company Name]
-[Standort / Location / Address]
-
-**Datum / Date:** [CURRENT_DATE]
-
-### **Bewerbung als [Stellenbezeichnung] / Application for [Job Title]**
-
-Sehr geehrte Damen und Herren, / Dear Hiring Team,
-
-[Inhalt / Content...]
-
-Mit freundlichen Grüßen / Sincerely,
-
-Gregor Nottmeier
-
-<!-- DOCUMENT_SPLIT -->
-
-# LEBENSLAUF / RESUME
-
-# Gregor Nottmeier
-**Data Scientist & AI Engineer**  
-E-Mail: gregornottmeier@gmail.com | Telefon: +49 177 7934086 | Geburtsdatum: 28.10.2001 | Standort: Mannheim  
-GitHub: https://github.com/gregornottmeier | LinkedIn: https://www.linkedin.com/in/gregor-nottmeier-265734205  
-Sprachen / Languages: Deutsch (C2), Englisch (C1), Slowakisch (C1), Spanisch (A1), Latein
+# [Vollständiger Name]
+**[Zielposition / Fachliche Ausrichtung]**  
+E-Mail: [E-Mail-Adresse] | Telefon: [Telefonnummer] | Geburtsdatum: [Geburtsdatum] | Standort: [Wohnort]  
+GitHub: [GitHub-URL] | LinkedIn: [LinkedIn-URL]  
+Sprachen: [Sprachen mit GER/CEFR-Niveaus, z.B. Deutsch (C2), Englisch (C1)]
 
 ---
 
 ## PROFILE SUMMARY
 
-[2-3 Sätze prägnantes Profil zugeschnitten auf die Zielstelle / 2-3 tailored summary sentences.]
+[2-3 Sätze prägnantes Profil zugeschnitten auf die Zielstelle und Kernkompetenzen.]
 
 ---
 
-## TECH-STACK & FÄHIGKEITEN / TECH STACK & SKILLS
+## TECH-STACK & FÄHIGKEITEN
 
-- **Programmiersprachen / Programming Languages:** Python, SQL, TypeScript, MATLAB, VBA, SAS
-- **ML & Deep Learning:** PyTorch, stable-baselines3, transformers, braindecode, scikit-learn, mne, huggingface_hub, gymnasium
-- **Infrastruktur & Tools / Infrastructure & Tools:** Linux, Docker, systemd, PostgreSQL, Nginx, Gunicorn, Prisma, Flask, Next.js, Git, GitLab, GitHub
-- **Fachdomänen / Core Domains:** Deep Learning, Reinforcement Learning, NLP, Spatio-Temporal Analysis, Full-Stack Web Development
-
----
-
-## AUSGEWÄHLTE PROJEKTE / SELECTED PROJECTS
-
-### Inner Speech Classification via EEG Foundation Models
-**Tilburg University / Scientific Paper** | *PyTorch, braindecode, mne, huggingface_hub*
-
-- **Technical Implementation:** Fine-Tuning und systematischer Vergleich von EEG-Foundation-Models (BENDR, LaBraM) mit aufgabenspezifischen Architekturen (EEGNet) zur Klassifikation von Signalfolgen.
-- **Impact & Results:** Aufbau einer reproduzierbaren Deep-Learning-Benchmarking-Pipeline; 28,33 % Subject-Independent Accuracy in Zero-Calibration-Szenarien (über Baseline von 26,39 %).
-
-### LLM Sentiment Alignment via RLHF
-**Tilburg University** | *Python, PyTorch, transformers, stable-baselines3, gymnasium*
-
-- **Technical Implementation:** Post-Training Alignment von GPT-2 für Sentiment-Steuerung unter Einsatz von Deep Reinforcement Learning mit Human Feedback (RLHF).
-- **Impact & Results:** Optimierung der Trainingsstabilität durch KL-Penalty-Tuning; Proof-of-Concept zur Vermeidung von Reward-Hacking bei hoher sprachlicher Diversität.
-
-### Contextual Linear Bandit RL
-**Bachelorarbeit / Bachelor Thesis (Note / Grade: 1,3)** | *Python, Reinforcement Learning, Monte Carlo Methods*
-
-- **Technical Implementation:** Theoretische Analyse und mathematische Simulation von Contextual Linear Bandit Algorithmen (linUCB / OFUL) in dynamischen Entscheidungsumgebungen.
-- **Impact & Results:** Ausgezeichnete wissenschaftliche Fundierung und Implementierung von Algorithmen zur sequentiellen Entscheidungsfindung.
+- **Programmiersprachen:** [Programmiersprachen aus SSOT_PROFILE]
+- **ML & Deep Learning:** [Frameworks und Bibliotheken aus SSOT_PROFILE]
+- **Infrastruktur & Tools:** [DevOps, Cloud, Datenbanken und Tools aus SSOT_PROFILE]
+- **Fachdomänen:** [Thematische Schwerpunkte und Kernbereiche aus SSOT_PROFILE]
 
 ---
 
-## BERUFSERFAHRUNG / PROFESSIONAL EXPERIENCE
+## AUSGEWÄHLTE PROJEKTE
 
-### Mercedes-Benz Bank AG — Praktikant Risk Analytics Credit
-*10.2024 – Heute / Present* | *SAS, Power BI, Excel (VBA), SAP Bank Analyzer*
+### [Projekttitel 1]
+**[Institution / Kontext]** | *[Haupt-Tech-Stack: z.B. Frameworks, Bibliotheken]*
 
-- **Core Responsibilities & Impact:** Durchführung quantitativer Datenanalysen zu Cost of Risk Credit und Entwicklung von automatisierten Monatsabschluss-Reportings in SAS, Power BI und VBA.
+- [Aktives deutsches Verb] [Erreichtes Ziel X], [gemessen an Metrik Y], [durch Implementierung / Methode Z].
+- [Aktives deutsches Verb] [Erreichtes Ziel X], [gemessen an Metrik Y], [durch Implementierung / Methode Z].
 
-### Integra e.V. (Studentische Unternehmensberatung) — Internal Finance Manager & Projektmitglied
-*03.2021 – 02.2023* | *MS Office, Projektmanagement*
+### [Projekttitel 2]
+**[Institution / Kontext]** | *[Haupt-Tech-Stack: z.B. Frameworks, Bibliotheken]*
 
-- **Core Responsibilities & Impact:** Leitung interner Finanzplanung sowie Durchführung von externen B2B-Marktstudien.
-
----
-
-## BILDUNGSWEG / EDUCATION
-
-- **M.Sc. Data Science** | Universität Mannheim (*In progress*, Schnitt / GPA: 1,9)
-- **Auslandssemester / Exchange Semester** | Tilburg University (*01.2026 – 06.2026*, Schnitt / GPA: 8,6/10)
-- **B.Sc. Mathematics in Business and Economics** | Universität Mannheim (*12.09.2024*, Schnitt / GPA: 2,2 | Bachelorarbeit / Thesis: 1,3)
-- **Auslandssemester / Exchange Semester** | Universidad Autónoma de Madrid (*09.2023 – 01.2024*)
-- **Abitur / High School Diploma** | Ratsgymnasium Minden (*06.2020*, Schnitt / GPA: 1,2)
+- [Aktives deutsches Verb] [Erreichtes Ziel X], [gemessen an Metrik Y], [durch Implementierung / Methode Z].
+- [Aktives deutsches Verb] [Erreichtes Ziel X], [gemessen an Metrik Y], [durch Implementierung / Methode Z].
 
 ---
 
-## EHRENAMT & ENGAGEMENT / VOLUNTEERING
+## BERUFSERFAHRUNG
 
-- **Fachschaft Mathematik & Informatik:** Vertretung der Studierendenschaft an der Universität Mannheim.
-- **Zensus 2022 (Stadt Mannheim):** Ehrenamtlicher Erhebungsbeauftragter für repräsentative Haushaltsstichproben.
+### [Unternehmensname] — [Rolle / Position]
+*[Startmonat.Jahr – Endmonat.Jahr / Heute]* | *[Tech-Stack & relevante Tools]*
+
+- [Aktives deutsches Verb] [Aufgabe / Verantwortungsbereich X], [gemessen an Metrik / Resultat Y], [durch Methode / Technologie Z].
+- [Aktives deutsches Verb] [Aufgabe / Verantwortungsbereich X], [gemessen an Metrik / Resultat Y], [durch Methode / Technologie Z].
+
+---
+
+## BILDUNGSWEG
+
+- **[Abschluss / Studiengang]** | [Universität / Hochschule] (*[Status / Zeitraum]*, [Schnitt / Noten / Schwerpunkt])
+- **[Vorheriger Abschluss / Studiengang]** | [Universität / Hochschule] (*[Status / Zeitraum]*, [Schnitt / Noten / Bachelorarbeit])
+- **[Schulabschluss / Abitur]** | [Schule / Gymnasium] (*[Abschlussdatum]*, [Abiturnote])
+
+---
+
+## EHRENAMT & ENGAGEMENT
+
+- **[Organisation / Gremium]:** [Rolle und konkreter Beitrag / Tätigkeiten].
+- **[Initiative / Projekt]:** [Rolle und konkreter Beitrag / Tätigkeiten].
+
+
+---
+
+## ENGLISH (Resume)
+
+# RESUME
+
+# [Full Name]
+**[Target Role / Professional Headline]**  
+Email: [Email Address] | Phone: [Phone Number] | Date of Birth: [Date of Birth] | Location: [Location]  
+GitHub: [GitHub Profile URL] | LinkedIn: [LinkedIn Profile URL]  
+Languages: [Languages with CEFR levels, e.g., German (C2), English (C1)]
+
+---
+
+## PROFILE SUMMARY
+
+[2-3 concise summary sentences tailored to the target role and core qualifications.]
+
+---
+
+## TECH STACK & SKILLS
+
+- **Programming Languages:** [Programming languages from SSOT_PROFILE]
+- **ML & Deep Learning:** [Frameworks and libraries from SSOT_PROFILE]
+- **Infrastructure & Tools:** [DevOps, Cloud, Databases and Tools from SSOT_PROFILE]
+- **Core Domains:** [Core domains and specializations from SSOT_PROFILE]
+
+---
+
+## SELECTED PROJECTS
+
+### [Project Title 1]
+**[Institution / Context]** | *[Primary Tech Stack: e.g. PyTorch, transformers, etc.]*
+
+- [Strong Action Verb] [accomplished outcome X], [measured by metric Y], [by doing / engineering Z].
+- [Strong Action Verb] [accomplished outcome X], [measured by metric Y], [by doing / engineering Z].
+
+### [Project Title 2]
+**[Institution / Context]** | *[Primary Tech Stack: e.g. PyTorch, transformers, etc.]*
+
+- [Strong Action Verb] [accomplished outcome X], [measured by metric Y], [by doing / engineering Z].
+- [Strong Action Verb] [accomplished outcome X], [measured by metric Y], [by doing / engineering Z].
+
+---
+
+## PROFESSIONAL EXPERIENCE
+
+### [Company Name] — [Role / Position]
+*[Start Month Year – End Month Year / Present]* | *[Tech Stack & Key Tools]*
+
+- [Strong Action Verb] [accomplished responsibility/outcome X], [measured by metric Y], [by doing Z].
+- [Strong Action Verb] [accomplished responsibility/outcome X], [measured by metric Y], [by doing Z].
+
+---
+
+## EDUCATION
+
+- **[Degree / Major]** | [University / Institution] (*[Status / Timeframe]*, [GPA / Grade / Honors])
+- **[Previous Degree / Major]** | [University / Institution] (*[Status / Timeframe]*, [GPA / Grade / Thesis])
+- **[High School Diploma]** | [School / Gymnasium] (*[Graduation Date]*, [GPA / Final Grade])
+
+---
+
+## VOLUNTEERING
+
+- **[Organization / Committee]:** [Role and measurable contributions / initiatives].
+- **[Initiative / Engagement]:** [Role and measurable contributions / initiatives].

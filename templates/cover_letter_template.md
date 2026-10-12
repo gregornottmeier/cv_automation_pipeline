@@ -1,55 +1,70 @@
-# COVER LETTER / ANSCHREIBEN TEMPLATE
+# COVER LETTER TEMPLATES
 
 ## GERMAN (Anschreiben)
 
-**Gregor Nottmeier**
-E-Mail: gregornottmeier@gmail.com | Telefon: +49 177 7934086 | Geburtsdatum: 28.10.2001
-GitHub: https://github.com/gregornottmeier | LinkedIn: https://www.linkedin.com/in/gregor-nottmeier-265734205
-Wohnort: Mannheim, Deutschland
+# ANSCHREIBEN
+
+**[Vollständiger Name]**  
+E-Mail: [E-Mail-Adresse] | Telefon: [Telefonnummer] | Geburtsdatum: [Geburtsdatum]  
+GitHub: [GitHub-URL] | LinkedIn: [LinkedIn-URL]  
+Wohnort: [Wohnort, Land]
 
 ---
 
+**An:**  
+[Unternehmensname]  
+[Standort / Adresse]
+
+**Datum:** [CURRENT_DATE]
+
 ### **Bewerbung als [Stellenbezeichnung]**
 
-Sehr geehrte Damen und Herren, / Sehr geehrte(r) [Ansprechpartner],
+Sehr geehrte Damen und Herren, / Sehr geehrte(r) Frau/Herr [Nachname],
 
-[Einleitung: Motivation und Bezug zur ausgeschriebenen Stelle im Bereich AI / Robotics / Deep Learning.]
+[Einleitung: Motivation und direkter Bezug zur ausgeschriebenen Position im Zielbereich.]
 
-[Hauptteil 1: Ausgewählte Projekte aus dem SSOT_PROFILE mit direktem Bezug zu den geforderten Kompetenzen (z.B. RLHF, EEG Foundation Models, Computer Vision) inkl. messbarem Impact. Hinweis: Keine Backticks/Code-Badges verwenden!]
+[Hauptteil 1: 1-2 ausgewählte Spitzenprojekte aus dem SSOT_PROFILE / Lebenslauf mit direktem Bezug zu den Anforderungen inkl. messbarem Impact (XYZ-Logik). Hinweis: Keine Backticks oder Code-Badges verwenden!]
 
-[Hauptteil 2: Akademischer Hintergrund (M.Sc. Data Science & B.Sc. Mathematik), methodische Stärken, Arbeitsweise.]
+[Hauptteil 2: Akademischer Hintergrund, methodische und theoretische Stärken sowie eigenverantwortliche Arbeitsweise.]
 
-[Schluss: Begeisterung für das Unternehmen, Gesprächsbereitschaft.]
+[Schluss: Begeisterung für das Unternehmen, Mehrwert für das Team und Bereitschaft zum Vorstellungsgespräch.]
 
 Mit freundlichen Grüßen
 
-Gregor Nottmeier
+[Vollständiger Name]
 
 
 ---
 
 ## ENGLISH (Cover Letter)
 
-**Gregor Nottmeier**
-Email: gregornottmeier@gmail.com | Phone: +49 177 7934086 | Date of Birth: October 28, 2001
-GitHub: https://github.com/gregornottmeier | LinkedIn: https://www.linkedin.com/in/gregor-nottmeier-265734205
-Location: Mannheim, Germany
+# COVER LETTER
+
+**[Full Name]**  
+Email: [Email Address] | Phone: [Phone Number] | Date of Birth: [Date of Birth]  
+GitHub: [GitHub Profile URL] | LinkedIn: [LinkedIn Profile URL]  
+Location: [City, Country]
 
 ---
 
+**To:**  
+[Company Name]  
+[Location / Address]
+
+**Date:** [CURRENT_DATE]
 
 ### **Application for [Job Title]**
 
-Dear Hiring Team, / Dear [Contact Name],
+Dear Hiring Team, / Dear [Contact Person],
 
-[Introduction: Motivation and direct reference to the advertised internship position in AI / Robotics / Deep Learning.]
+[Introduction: Strong opening stating motivation and direct reference to the advertised role.]
 
-[Body Paragraph 1: Selected projects from SSOT_PROFILE directly matching requested technical requirements (e.g. RLHF, EEG Foundation Models, Computer Vision) with quantifiable impact. Note: No backticks/code badges in prose text.]
+[Body Paragraph 1: 1-2 selected standout projects from SSOT_PROFILE / CV directly aligning with target requirements with quantifiable impact. Note: Do not use backticks or code badges!]
 
-[Body Paragraph 2: Academic background (M.Sc. Data Science & B.Sc. Mathematics), analytical strengths, and working methodology.]
+[Body Paragraph 2: Academic background, methodological rigor, problem-solving skills, and work ethic.]
 
-[Closing: Enthusiasm for the company and readiness for an interview.]
+[Closing: Enthusiasm for the company's mission and call to action for an interview.]
 
 Sincerely,
 
-Gregor Nottmeier
+[Full Name]
